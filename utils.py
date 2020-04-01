@@ -7,30 +7,20 @@ from scipy.stats import binom
 from scipy.special import comb
 
 
-def bottom_hat(img, structuring_elements):
-    operated_images = []
-    for se in structuring_elements:
-        bh = cv2.morphologyEx(img, cv2.MORPH_CLOSE, se, borderType=cv2.BORDER_ISOLATED)
-        operated_images.append(bh)
-    a = operated_images[0]
-    for oi in operated_images[1:]:
-        a = np.minimum(a, oi)
-    return a
-
-
-def create_structuring_elements(line_length, directions):
-
+def create_structuring_elements(line_length, dir_step):
+    directions = [(dir_step * i) * (np.pi / 180.0) for i in range(int(floor(180.0 / dir_step)))]  # radians
     structuring_elements = []
+
     for direction in directions:
         width = int(line_length * np.cos(direction))
         height = int(line_length * np.sin(direction))
         se = np.zeros((max(height, 1), max(abs(width), 1)), np.uint8)
         if width > 0:
-            cv2.line(se, (0, 0), (width-1, max(height-1, 0)), 1, 1)
+            cv2.line(se, (0, 0), (width - 1, max(height - 1, 0)), 1, 1)
         elif width < 0:
-            cv2.line(se, (abs(width)-1, 0), (0, max(height-1, 0)), 1, 1)
+            cv2.line(se, (abs(width) - 1, 0), (0, max(height - 1, 0)), 1, 1)
         else:
-            cv2.line(se, (0, 0), (0, height-1), 1, 1)
+            cv2.line(se, (0, 0), (0, height - 1), 1, 1)
         structuring_elements.append(se)
     return structuring_elements
 
@@ -63,185 +53,121 @@ def filter_by_shape(img, circularity_threshold=0.5):
     return cracks * img
 
 
-def sliding_mod_bottom_hat(img, line_length, step=45.0):
-    window_size = (line_length*10, line_length*10)
-    anchor_o = [0, 0]
+def multi_dir_bottom_hat_transform(img, se_length=10, dir_step=10, open_first=True):
+    structuring_elements = create_structuring_elements(se_length, dir_step)
 
-    cols = ceil(img.shape[1] / window_size[1])
-    rows = ceil(img.shape[0] / window_size[0])
-    windows = []
-    for row in range(rows):
-        for col in range(cols):
-            windows.append(img[row*window_size[0]:(row+1)*window_size[0], col*window_size[1]:(col+1)*window_size[1]])
-
-    for window in windows:
-        # L, filtered, binarized = mod_bottom_hat(window, line_length, step)
-
-        ###
-        bottom_hat, filtered, binarized_o = mod_bottom_hat(window, line_length, step)
-        dilated = morph_link_c(binarized_o, ceil(line_length / 20))
-        cracks = filter_by_shape(dilated)
-        skeleton = cv2.ximgproc.thinning(cracks)
-        connected_skeleton = morph_link_c(skeleton, ceil(line_length / 20))
-        clean = filter_by_length(connected_skeleton)
-        ###
-
-        cv2.imshow("or / bh", np.concatenate((window, bottom_hat), axis=1))
-        cv2.waitKey(2000)
-    a= 0
+    images = []
+    for se in structuring_elements:
+        if open_first:
+            resulting_image = cv2.morphologyEx(
+                cv2.morphologyEx(img, cv2.MORPH_OPEN, se, borderType=cv2.BORDER_ISOLATED),
+                cv2.MORPH_CLOSE, se, borderType=cv2.BORDER_ISOLATED)
+        else:
+            resulting_image = cv2.morphologyEx(img, cv2.MORPH_CLOSE, se, borderType=cv2.BORDER_ISOLATED)
+        images.append(resulting_image)
+    supremum = images[0]
+    for closed_image in images[1:]:
+        supremum = np.maximum(supremum, closed_image)
+    return min_max_contrast_enhancement(supremum.astype(np.int16) - img.astype(np.int16))
 
 
-
-def mod_bottom_hat(img, line_length, step=45.0):
-    # step in degrees
-    directions = [(step*i)*(np.pi/180.0) for i in range(int(floor(180.0/step)))]  # radians
-    structuring_elements = create_structuring_elements(line_length, directions)
-    norm = (img.astype(np.float) - img.min()) * 255/(img.max() - img.min())
-    norm = norm.astype(np.uint8)
-    a = opening_closing(norm, structuring_elements)
-    # b = bottom_hat(norm, structuring_elements)
-    L = a.astype(np.int16) - norm.astype(np.int16)
-    L = (255 * (L.astype(np.float32) - L.min()) / (L.max() - L.min())).astype(np.uint8)
-    # L = b.astype(np.int16) - norm.astype(np.int16)
-    # cv2.imshow("L", np.concatenate(()))
-    # cv2.waitKey(10000)
-    # M = np.maximum(np.zeros(L.shape, np.int16), L - int(L.mean() + 0*L.std())).astype(np.uint8)
-    # L = (M - M.min()) / (M.max() - M.min())
-    # L = (255*L).astype(np.uint8)
-
-    # hist, bins = np.histogram(img.ravel(), 256, [0, 256])
-    # ret, binarized = cv2.threshold(L, min(254, int(L.mean() + 2*L.std())), 255, cv2.THRESH_BINARY)
-    filtered_0 = multi_or_conv(L, 10, 10, 1, 1, 0)
-    filtered_1 = multi_or_prob_conv(filtered_0, 10, 1, 1e-10, 10)
-    ret, binarized = cv2.threshold(filtered_1, min(254, int(filtered_1.mean() + 2*filtered_1.std())), 255, cv2.THRESH_BINARY)
-    return L, filtered_0, filtered_1, binarized
+def multi_dir_linear_filtering(img, kernel_length=10, dir_step=10):
+    structuring_elements = create_structuring_elements(kernel_length, dir_step)
+    for idx, se in enumerate(structuring_elements):
+        structuring_elements[idx] = se / se.sum()
+    filtered_images = []
+    for se in structuring_elements:
+        blur_image = cv2.filter2D(img, -1, se, borderType=cv2.BORDER_ISOLATED)
+        filtered_images.append(blur_image)
+    supremum = filtered_images[0]
+    for image in filtered_images[1:]:
+        supremum = np.maximum(supremum, image)
+    return supremum
 
 
-def conv(img, kernel, iterations=5, t=10000):
-    if iterations == 0:
-        return img
-    else:
-        img = cv2.filter2D(conv(img, kernel, iterations-1, t), -1, kernel, borderType=cv2.BORDER_ISOLATED)
-        if t > 0:
-            cv2.imshow("filtered", img)
-            cv2.waitKey(t)
-        return img
-
-
-def multi_or_conv(img, length=10, step=10, iterations=5, iterations_per_filter=5, t=0):
-    if iterations == 0:
-        return img
-    else:
-        img = multi_or_conv(img, length, step, iterations-1, iterations_per_filter, t)
-        directions = [(step * i) * (np.pi / 180.0) for i in range(int(floor(180.0 / step)))]  # radians
-        structuring_elements = create_structuring_elements(length, directions)
-        for idx, se in enumerate(structuring_elements):
-            structuring_elements[idx] = se/se.sum()
-        images = []
-        for se in structuring_elements:
-            ri = conv(img, se, iterations_per_filter, t)
-            ret, binarized = cv2.threshold(ri, 125, 255, cv2.THRESH_BINARY)
-            binarized = ri
-            images.append(binarized)
-        m = images[0]
-        for fi in images[1:]:
-            m = np.maximum(m, fi)
-        return m
-
-
-def multi_or_prob_conv(img, length=10, r=0.9, epsilon=0.01, step=10):
-    directions = [(step * i) * (np.pi / 180.0) for i in range(int(floor(180.0 / step)))]  # radians
-    structuring_elements = create_structuring_elements(length, directions)
-    probabilities = np.array([0 for i in range(256)], dtype=np.float32)
-    unique, counts = np.unique(img, return_counts=True)
-    for idx, intensity in enumerate(unique):
-        probabilities[intensity] = counts[idx] / (img.shape[0] * img.shape[1])
+def multi_dir_probabilistic_filtering(img, kernel_length=10, r=1, epsilon=0.01, dir_step=10):
+    structuring_elements = create_structuring_elements(kernel_length, dir_step)
+    intensity_probabilities = np.array([0 for i in range(256)], dtype=np.float32)
+    unique_values, counts = np.unique(img, return_counts=True)
+    n_pixels = img.shape[0] * img.shape[1]
+    for idx, intensity in enumerate(unique_values):
+        intensity_probabilities[intensity] = counts[idx] / n_pixels
     accumulated_prob = np.array([0 for i in range(256)], dtype=np.float32)
     prev_prob = 0
-    for intensity in range(probabilities.shape[0]):
-        accumulated_prob[intensity] = probabilities[intensity] + prev_prob
+    for intensity in range(intensity_probabilities.shape[0]):
+        accumulated_prob[intensity] = intensity_probabilities[intensity] + prev_prob
         prev_prob = accumulated_prob[intensity]
 
     images = []
-    # threshold = int(img.mean() + 2*img.std())
-    # ret, binarized = cv2.threshold(img, threshold, 255, cv2.THRESH_BINARY)
-    # binarized = (binarized/255).astype(np.float32)
-    # p = binarized.sum() / float(img.shape[0] * img.shape[1])
-    # binary_distribution = [binom(length, p).pmf(k) for k in range(length+1)]
-    # accumulated_prob = [binary_distribution[0]]
-    # for idx, prob in enumerate(binary_distribution[1:], 1):
-    #     accumulated_prob.append(accumulated_prob[idx-1] + binary_distribution[idx])
-    # for idx, prob in enumerate(accumulated_prob):
-    #     if prob >= binary_prob_thres:
-    #         min_k = idx
-    #         break
-    # max_p = max(binary_distribution)
-    # min_p = min(binary_distribution)
     for se in structuring_elements:
-        # n_possible_locations = (img.shape[0] - se.shape[0]) * (img.shape[1] - se.shape[1])
+        #  Expected Number of False Alarms choosing all possible paths of length l and orientation
+        #       d in the current image if it doesn't have cracks: NFA
+        #  Number of Possible Paths of length l and orientation d in the current image: NPP
+        #  Minimum number of desired bright pixels in a path to be considered a crack: k
+        #  Probability of randomly finding a bright pixel: p
+        #  Probability of finding a path with k <= no. of bright pixels <= l, under a binomial distribution with l
+        #       number of trials and p as success probability: P[crack|k,l,p]
+        #  NFA = NPP * P[crack|k,l,p]
         l = int(se.sum())
-        k = int(r*l)
+        k = int(r * l)
+        #  Probability of finding exactly k bright pixels in a path given a binomial distribution with probability
+        #       p and l trials: P[k|l,p] = (lCk) * (p**k) * (1-p)**(l-k)
         p = sym.Symbol('p')
-        probabilities = [comb(l, i)*(p**i)*(1-p)**(l-i) for i in range(k, l+1)]
+        #  P[crack|k,l,p] = ΣP[i|l,p] from i=k to k=l
+        probabilities = [comb(l, i) * (p ** i) * (1 - p) ** (l - i) for i in range(k, l + 1)]
+        #  Maximum percentage of admissible false alarms: epsilon
+        #  epsilon = (false alarms) / NPP
+        #  NFA = NPP * P[crack|k,l,p] <= epsilon * NPP
+        #  P[crack|k,l,p] - epsilon <= 0
         equation = -epsilon
         for prob in probabilities:
-            equation += prob #* n_possible_locations
+            equation += prob
+        #  We know k, l and epsilon, so we solve for p
         max_p = 0
         solutions = sym.solveset(equation, p).args
         for solution in solutions:
             if type(solution) is sym.numbers.Float:
                 if max_p < float(solution) < 1.0:
                     max_p = solution
+        #  We threshold the image for the intensity where the right side of the histogram has a probability <= p
         for intensity, prob in enumerate(accumulated_prob):
             if (1 - prob) <= max_p:
                 threshold = intensity
                 break
         ret, binarized = cv2.threshold(img, threshold, 1, cv2.THRESH_BINARY)
-        binarized = binarized.astype(np.float32)
+        #  We convolve the SE over the image looking for all the possible crack segments with its same length and
+        #       orientation
         filtered = cv2.filter2D(binarized, -1, se, borderType=cv2.BORDER_ISOLATED)
-        rescaled = np.maximum(np.zeros(filtered.shape), (filtered - (k-1)) / (l - (k-1)))
-        rescaled = (255*rescaled).astype(np.uint8)
-        # for i in range(rescaled.shape[0]):
-        #     for j in range(rescaled.shape[1]):
-        #         intensity = filtered[i,j]
-        #         # pix_p = binary_distribution[int(intensity)]
-        #         # rescaled[i, j] = (max_p - pix_p) / (max_p - min_p)
-        #         if intensity >= min_k:
-        #             rescaled[i, j] = 255
+        # The more connected pixels, the greater the crack probability
+        rescaled = np.maximum(np.zeros(filtered.shape), (filtered.astype(np.float32) - (k - 1)) / (l - (k - 1)))
+        rescaled = (255 * rescaled).astype(np.uint8)
         images.append(rescaled)
-    m = images[0]
-    for fi in images[1:]:
-        m = np.maximum(m, fi)
-    return m
+    supremum = images[0]
+    for image in images[1:]:
+        supremum = np.maximum(supremum, image)
+    return supremum
+
+
+def min_max_contrast_enhancement(img):
+    contrast_enhanced = (img.astype(np.float) - img.min()) * 255 / (img.max() - img.min())
+    return contrast_enhanced.astype(np.uint8)
 
 
 def morph_link_c(img, se_size):
     se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (se_size, se_size))
-    # close = cv2.morphologyEx(img, cv2.MORPH_CLOSE, se)
-    # open = cv2.morphologyEx(close, cv2.MORPH_OPEN, se)
     dilated = cv2.dilate(img, se)
     return dilated
 
 
-def opening_closing(img, structuring_elements):
-    operated_images = []
-    for se in structuring_elements:
-        bh = cv2.morphologyEx(cv2.morphologyEx(img, cv2.MORPH_OPEN, se, borderType=cv2.BORDER_ISOLATED), cv2.MORPH_CLOSE, se, borderType=cv2.BORDER_ISOLATED)
-        operated_images.append(bh)
-    a = operated_images[0]
-    for oi in operated_images[1:]:
-        a = np.maximum(a, oi)
-    return a
-
-
 def find_cracks(img, se_size=10, ori_step=10):
-    # bottom_hat, filtered, binarized_o = sliding_mod_bottom_hat(img, se_size, ori_step)
-    bottom_hat, filtered_0, filtered_1, binarized_o = mod_bottom_hat(img, se_size, ori_step)
-    dilated = morph_link_c(binarized_o, se_size)
-    # dilated = morph_link_c(filtered, ceil(se_size / 20))
+    better_contrast = min_max_contrast_enhancement(img)
+    bottom_hat = multi_dir_bottom_hat_transform(better_contrast, se_size, ori_step)
+    filtered_0 = multi_dir_linear_filtering(bottom_hat, se_size, ori_step)
+    filtered_1 = multi_dir_probabilistic_filtering(filtered_0, se_size, 1, 1e-10, 10)
+    dilated = morph_link_c(filtered_1, se_size)
     cracks = filter_by_shape(dilated)
     skeleton = cv2.ximgproc.thinning(cracks)
     connected_skeleton = cv2.ximgproc.thinning(morph_link_c(skeleton, se_size))
     clean = filter_by_length(connected_skeleton)
-    # clean = connected_skeleton
-    return clean, [bottom_hat, filtered_0, filtered_1, binarized_o, dilated, skeleton, connected_skeleton]
+    return clean, [better_contrast, bottom_hat, filtered_0, filtered_1, dilated, cracks, skeleton, connected_skeleton,
+                   clean]
