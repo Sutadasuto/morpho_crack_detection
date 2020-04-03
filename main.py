@@ -38,13 +38,20 @@ def create_images(args):
 
 
 def main(args):
+    description = "Min-Max contrast enhancement\n" \
+                  "Bottom-hat transform (18 orientations, opening length 2, closing length 10; min-max constrast enhancement afterwards)\n" \
+                  "Oriented filtering (18 orientations, length 10)\n" \
+                  "Probabilistic oriented threshold (18 orientations, l=10, k=10, epsilon=1e-10)\n" \
+                  "Each image contains, from left to right: original image, bottom-hat transform, filtered image, binarized image, overlay of binarized image over original"
     if args.save_results_to is not None:
         if not os.path.exists(args.save_results_to):
             os.makedirs(args.save_results_to)
+        with open(os.path.join(args.save_results_to, "README"), "w") as f:
+            f.write(description)
     images, paths = create_images(args)
     for idx, image in enumerate(images):
-        cracks, preprocessing = utils.find_cracks(image)
-        overlay = np.maximum((image / 2).astype(np.uint8), cracks)
+        cracks, preprocessing = utils.find_cracks(image, se_size=10, ori_step=10)
+        overlay = np.maximum((image / 2).astype(np.uint8), preprocessing[3])
         results = np.concatenate((image, preprocessing[1], preprocessing[2], preprocessing[3], overlay), axis=1)
 
         if strtobool(args.show_results):
