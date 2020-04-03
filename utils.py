@@ -11,16 +11,32 @@ def create_structuring_elements(line_length, dir_step):
 
     for direction in directions:
         width = int(line_length * np.cos(direction))
+        if abs(width) < 1 or width%2 == 0:  # SE must be strictly odd and symmetrical
+            if width == 0:
+                width = 1
+            else:
+                width += int(width/abs(width))
         height = int(line_length * np.sin(direction))
-        se = np.zeros((max(height, 1), max(abs(width), 1)), np.uint8)
-        if width > 0:
-            cv2.line(se, (0, 0), (width - 1, max(height - 1, 0)), 1, 1)
-        elif width < 0:
-            cv2.line(se, (abs(width) - 1, 0), (0, max(height - 1, 0)), 1, 1)
-        else:
-            cv2.line(se, (0, 0), (0, height - 1), 1, 1)
+        if height < 1 or height%2 == 0:  # SE must be strictly odd and symmetrical
+            height += 1
+        se = draw_symmetrical_line(height, width)
         structuring_elements.append(se)
     return structuring_elements
+
+
+def draw_symmetrical_line(height, width):
+    image = np.zeros((height, abs(width)), np.uint8)
+    m = height / width
+    x_s = [i for i in range(abs(width) + 1)]
+    for i in range(abs(width)):
+        x_lower_bound = x_s[i]
+        x_greater_bound = x_s[i+1]
+        min_y = floor(abs(m)*x_lower_bound)
+        max_y = ceil(abs(m)*x_greater_bound)
+        image[min_y:max_y, x_s[i]] = 1
+    if m < 0:
+        image = np.flip(image, axis=1)
+    return image
 
 
 def filter_by_length(img, length=None):
@@ -54,7 +70,7 @@ def filter_by_shape(img, circularity_threshold=0.5):
 def multi_dir_bottom_hat_transform(img, se_length=10, dir_step=10, open_first=0.2):
     structuring_elements = create_structuring_elements(se_length, dir_step)
     if open_first is not None:
-        reduced_structuring_elements = create_structuring_elements(max(2, int(open_first*se_length)), dir_step)
+        reduced_structuring_elements = create_structuring_elements(max(3, int(open_first*se_length)), dir_step)
 
     images = []
     differences = []
@@ -65,7 +81,6 @@ def multi_dir_bottom_hat_transform(img, se_length=10, dir_step=10, open_first=0.
         else:
             resulting_image = cv2.morphologyEx(img, cv2.MORPH_CLOSE, se)
         images.append(resulting_image)
-        differences.append(resulting_image-img)
     supremum = images[0]
     for closed_image in images[1:]:
         supremum = np.maximum(supremum, closed_image)
