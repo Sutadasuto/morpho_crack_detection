@@ -40,7 +40,7 @@ def create_images(args):
 def main(args):
     description = "Min-Max contrast enhancement\n" \
                   "Bottom-hat transform (18 orientations, opening length 3, closing length 11; min-max constrast enhancement afterwards)\n" \
-                  "Sliding 50x50 disjoint windows\n" \
+                  "Sliding 100x100 disjoint windows\n" \
                   "2.5*MAD from median threshold using b=1.4826 (calculated on h(-i) union h(i) where h is the frequency of pixels with intensity i)\n" \
                   "Each image contains, from left to right: original image, bottom-hat transform, binarized image, overlay of binarized image over original"
     if args.save_results_to is not None:
@@ -51,8 +51,8 @@ def main(args):
     images, paths = create_images(args)
     for idx, image in enumerate(images):
         # cracks, preprocessing = utils.find_cracks(image, se_size=10, ori_step=10)
-        cracks, preprocessing = utils.find_cracks_adaptive_threshold(image, se_size=10, ori_step=10, window_size=(50, 50))
-        overlay = np.maximum((image / 2).astype(np.uint8), preprocessing[3])
+        cracks, preprocessing = utils.find_cracks_adaptive_threshold(image, se_size=10, ori_step=10, window_size=(100, 100))
+        overlay = np.maximum((image / 2).astype(np.uint8), preprocessing[2])
         results = np.concatenate((image, preprocessing[1], preprocessing[2], overlay), axis=1)
 
         if strtobool(args.show_results):
