@@ -218,12 +218,12 @@ def find_cracks_adaptive_threshold(img, se_size=10, ori_step=10, window_size=(10
     windows, anchors = get_windows(filtered, window_size, sliding_steps)
     resulting_windows = []
     for window in windows:
-        resulting_windows.append(sat.multi_dir_prob_filter_threshold_2(window, se_size, 1, 1e-10, 10))
-        # resulting_windows.append(sat.mad_threshold(window, decision_level=2, b=1.4826))
+        # resulting_windows.append(sat.multi_dir_prob_filter_threshold_2(window, se_size, 1, 1e-10, 10))
+        resulting_windows.append(sat.mad_threshold(window, decision_level=2.5, b=1.4826))
     binarized = join_windows(resulting_windows, anchors)
     dilated = morph_link_c(binarized, se_size)
     cracks = filter_by_shape(dilated)
     skeleton = cv2.ximgproc.thinning(cracks)
     connected_skeleton = cv2.ximgproc.thinning(morph_link_c(skeleton, se_size))
     clean = filter_by_length(connected_skeleton)
-    return clean, [better_contrast, bottom_hat, filtered, binarized]
+    return clean, [better_contrast, bottom_hat, binarized]

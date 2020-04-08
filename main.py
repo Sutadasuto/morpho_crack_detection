@@ -41,7 +41,7 @@ def main(args):
     description = "Min-Max contrast enhancement\n" \
                   "Bottom-hat transform (18 orientations, opening length 3, closing length 11; min-max constrast enhancement afterwards)\n" \
                   "Sliding 50x50 disjoint windows\n" \
-                  "Probabilistic oriented threshold 2 (18 orientations, l=11, k=11, epsilon=1e-10)\n" \
+                  "2.5*MAD from median threshold using b=1.4826 (calculated on h(-i) union h(i) where h is the frequency of pixels with intensity i)\n" \
                   "Each image contains, from left to right: original image, bottom-hat transform, binarized image, overlay of binarized image over original"
     if args.save_results_to is not None:
         if not os.path.exists(args.save_results_to):
@@ -53,7 +53,7 @@ def main(args):
         # cracks, preprocessing = utils.find_cracks(image, se_size=10, ori_step=10)
         cracks, preprocessing = utils.find_cracks_adaptive_threshold(image, se_size=10, ori_step=10, window_size=(50, 50))
         overlay = np.maximum((image / 2).astype(np.uint8), preprocessing[3])
-        results = np.concatenate((image, preprocessing[1], preprocessing[2], preprocessing[3], overlay), axis=1)
+        results = np.concatenate((image, preprocessing[1], preprocessing[2], overlay), axis=1)
 
         if strtobool(args.show_results):
             cv2.imshow("original / bh / filter_0 / filter_1 / overlay", results)
