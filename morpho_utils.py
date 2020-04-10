@@ -219,7 +219,7 @@ def find_cracks_adaptive_threshold(img, se_size=10, ori_step=10, window_size=(10
     resulting_windows = []
     for window in windows:
         # resulting_windows.append(sat.multi_dir_prob_filter_threshold_2(window, se_size, 1, 1e-10, 10))
-        resulting_windows.append(sat.mad_threshold(window, decision_level=2.5, b=1.4826))
+        resulting_windows.append(sat.mad_threshold(window, decision_level=2, b=1.4826))
     binarized = join_windows(resulting_windows, anchors)
     dilated = morph_link_c(binarized, se_size)
     cracks = filter_by_shape(dilated)

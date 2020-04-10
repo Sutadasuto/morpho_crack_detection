@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import sympy as sym
-import utils
+import morpho_utils
 from scipy.special import comb
 from math import floor, ceil
 
@@ -73,7 +73,7 @@ def get_probability_histogram(img):
 
 
 def multi_dir_prob_filter_threshold(img, kernel_length=10, r=1, epsilon=0.01, dir_step=10):
-    structuring_elements = utils.create_structuring_elements(kernel_length, dir_step)
+    structuring_elements = morpho_utils.create_structuring_elements(kernel_length, dir_step)
     prob_histogram = get_probability_histogram(img)
     accumulated_prob = get_accumulated_probability(prob_histogram)
 
@@ -129,7 +129,7 @@ def multi_dir_prob_filter_threshold(img, kernel_length=10, r=1, epsilon=0.01, di
 
 
 def multi_dir_prob_filter_threshold_2(img, kernel_length=10, r=1, epsilon=0.01, dir_step=10):
-    structuring_elements = utils.create_structuring_elements(kernel_length, dir_step)
+    structuring_elements = morpho_utils.create_structuring_elements(kernel_length, dir_step)
     prob_histogram = get_probability_histogram(img)
     accumulated_prob = get_accumulated_probability(prob_histogram)
 
