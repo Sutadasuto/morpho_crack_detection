@@ -1,26 +1,50 @@
-function preprocess_images(paths, dataset_name)
-    results_dir = strcat(dataset_name, ".mat");
-    mkdir(results_dir);
+function preprocess_images_balanced(paths, gt_paths, gt_value, dataset_name)
     path_list = split(paths,';');
-    path_list = string(path_list);
+    gt_path_list = split(gt_paths,';');
+    data = [];
+    labels = [];
 
     for path_idx = 1:length(path_list)
-        split_path = regexp(path_list(path_idx), filesep, 'split');
-        file_name = split_path(end);
         img = imread(path_list(path_idx));
+        gt = imread(gt_path_list(path_idx));
         disp('Current image: ' + path_list(path_idx));
         
         tic
         features = extract_features(img, [3, 5, 10], [3, 5, 10], [50, 50]);
         toc
-        
         images = features{1};
-        resulting_image_path = fullfile(results_dir, strrep(strrep(file_name,'.png','.mat'), '.jpg', '.mat'));
-        save(resulting_image_path, "images");
+        processed_size = size(images);
+        
+        gt_pixels = find(gt == gt_value);
+        bg_pixels = find(gt == (255 - gt_value));
+        n_gt_pixels = numel(gt_pixels);
+        n_bg_pixels = numel(bg_pixels);
+        n_rand_bg_pixels = min(n_gt_pixels, n_bg_pixels);
+        rand_ind = randperm(n_bg_pixels);
+        bg_pixels = bg_pixels(rand_ind(1:n_rand_bg_pixels));
+        [row_gt, col_gt] = ind2sub(size(gt), gt_pixels);
+        [row_bg, col_bg] = ind2sub(size(gt), bg_pixels);
+        
+        new_data = zeros(n_gt_pixels + n_rand_bg_pixels, processed_size(3), 'single');
+        for gt_idx = 1:n_gt_pixels
+            row = row_gt(gt_idx);
+            col = col_gt(gt_idx);
+            new_data(gt_idx, :) = images(row, col, :); 
+        end
+        for bg_idx = 1:n_rand_bg_pixels
+            row = row_bg(bg_idx);
+            col = col_bg(bg_idx);
+            new_data(n_gt_pixels + bg_idx, :) = images(row, col, :); 
+        end
+        
+        data = [data; new_data];
+        labels = [labels; ones(n_gt_pixels, 1, 'uint8'); zeros(n_rand_bg_pixels, 1, 'uint8')];
     end
     
+    save(strcat(dataset_name, "_balanced.mat"), "data");
+    save(strcat(dataset_name, "_labels.mat"), "labels");
     feature_names = char(features{2});
-    save("feature_names.mat", "feature_names");
+    save(strcat(dataset_name, "_feature_names.mat"), "feature_names");
 end
 
 function features = extract_features(img, circle_diameters, line_lengths, window_size)
