@@ -79,7 +79,7 @@ def create_samples(dataset_name, dataset_path, mat_path=None, balanced=False, sa
 def create_multidataset_samples(dataset_names, dataset_paths, mat_paths=[None, None], balanceds=[False, False], save_imagess=[True, True]):
     print("Loading data...")
 
-    features_list, labels_list, feature_names_list, selected_pixels_list, paths_list = []
+    features_list, labels_list, feature_names_list, selected_pixels_list, paths_list = [],[],[],[],[]
     for idx in range(len(dataset_names)):
         dataset_name, dataset_path, mat_path, balanced, save_images = dataset_names[idx], dataset_paths[idx], mat_paths[idx], balanceds[idx], save_imagess[idx]
 
@@ -93,17 +93,17 @@ def create_multidataset_samples(dataset_names, dataset_paths, mat_paths=[None, N
         if mat_path is not None:
             features, labels, feature_names, selected_pixels = open_morphological_features(mat_path, balanced)
             features_list.append(features)
+            labels_list.append(labels)
             feature_names_list.append(feature_names)
             selected_pixels_list.append(selected_pixels)
             paths_list.append([or_im_paths, gt_paths])
             continue
 
-
         gt_intensity = 255 if dataset_name == "cfd" or dataset_name == "cfd-pruned" else 0
         features, labels, feature_names, selected_pixels = get_morphological_features(or_im_paths, gt_paths, gt_intensity,
                                                                                       dataset_name, balanced, save_images)
-        features, labels, feature_names, selected_pixels = open_morphological_features(mat_path, balanced)
         features_list.append(features)
+        labels_list.append(labels)
         feature_names_list.append(feature_names)
         selected_pixels_list.append(selected_pixels)
         paths_list.append([or_im_paths, gt_paths])

@@ -70,6 +70,24 @@ def feature_selection(x, y, feature_names):
     print(string)
 
 
+def test_models_cross_dataset(dataset_names, dataset_paths, mat_paths, balanceds, save_imagess):
+    features_list, labels_list, feature_names_list, selected_pixels_list, paths_list = ml_utils.create_multidataset_samples(
+        dataset_names, dataset_paths, mat_paths, balanceds, save_imagess)
+    classifiers = [LinearSVC(), Lasso(alpha=LassoCV().fit(features_list[0], labels_list[0]).alpha_)]
+
+    with open("results_recovery.txt", "w") as f:
+        print('Training on "%s", testing on "%s"' % (dataset_names[0], dataset_names[1]))
+        f.write('Training on "%s", testing on "%s"\n' % (dataset_names[0], dataset_names[1]))
+        for clf in classifiers:
+            print("Classifier: %s" % str(clf))
+            f.write("\nClassifier: %s\n" % str(clf))
+            score = ml_utils.cross_dataset_validation(clf, features_list[0], labels_list[0], features_list[1],
+                                                      labels_list[1], selected_pixels_list[1], paths_list[1],
+                                                      str(type(clf))[16:-2])
+            print("Score: {:.2f}%".format(100 * score))
+            f.write("Score: {:.2f}%\n".format(100 * score))
+
+
 def train_models(x, y, feature_names, selected_pixels, paths):
     selected_features = "Frangi's vesselness;Bottom-hat;Cross bottom-hat;Dilation Disk diameter 3;Dilation Disk diameter 5;Dilation Disk diameter 10;Erosion Disk diameter 3;Erosion Disk diameter 5;Erosion Disk diameter 10;Closing Disk diameter 3;Closing Disk diameter 5;Closing Disk diameter 10;Opening Disk diameter 3;Opening Disk diameter 5;Opening Disk diameter 10;Closing Multi-dir Line length 3;Closing Multi-dir Line length 5;Closing Multi-dir Line length 10;Sliding mean 50x50;Sliding median 50x50;Sliding std 50x50;Sliding mad 50x50"
     selected_indices = [np.where(feature_names == feature)[0][0] for feature in selected_features.split(";")]
@@ -92,12 +110,13 @@ def train_models(x, y, feature_names, selected_pixels, paths):
         for clf in classifiers:
             print("Classifier: %s" % str(clf))
             f.write("\nClassifier: %s\n" % str(clf))
-            cv_results = cross_validate(clf, x[:, selected_indices], y, verbose=50, n_jobs=1, cv=folds, return_estimator=True)
+            cv_results = cross_validate(clf, x[:, selected_indices], y, verbose=50, n_jobs=1, cv=folds,
+                                        return_estimator=True)
             scores = cv_results["test_score"]
             print(str(scores))
             f.write("%s\n" % str(scores))
-            print("Average: {:.2f}%, Std: {:.2f}%".format(100*np.mean(scores), 100*np.std(scores)))
-            f.write("Average: {:.2f}%, Std: {:.2f}%\n".format(100*np.mean(scores), 100*np.std(scores)))
+            print("Average: {:.2f}%, Std: {:.2f}%".format(100 * np.mean(scores), 100 * np.std(scores)))
+            f.write("Average: {:.2f}%, Std: {:.2f}%\n".format(100 * np.mean(scores), 100 * np.std(scores)))
             predictions = ml_utils.cross_validate_predict(x[:, selected_indices], folds, cv_results)
             ml_utils.save_visual_results(selected_pixels, predictions, y, paths, str(type(clf))[16:-2])
 
@@ -107,15 +126,31 @@ def train_models(x, y, feature_names, selected_pixels, paths):
 # feature_selection(x, y, feature_names)
 # ml_utils.reconstruct_from_selected_pixels(selected_pixels, y, paths[1])
 
-dataset_name_1 = "esar"
-dataset_folder_1 = "/media/winbuntu/databases/CrackDataset"
-mat_path_1 = "esar_balanced.mat"
+# dataset_name = "cfd-pruned"
+# dataset_folder = "/media/winbuntu/databases/CrackForestDatasetPruned"
+# mat_path = "cfd-pruned_balanced.mat"
+# # mat_path = None
+# balanced = True
+# save_images = True
+#
+# x, y, feature_names, selected_pixels, paths = ml_utils.create_samples(dataset_name, dataset_folder, mat_path,
+#                                                                       balanced, save_images)
+# train_models(x, y, feature_names, selected_pixels, paths)
+
+dataset_name_1 = "cfd-pruned"
+dataset_folder_1 = "/media/winbuntu/databases/CrackForestDatasetPruned"
+mat_path_1 = "cfd-pruned_balanced.mat"
 # mat_path_1 = None
 balanced_1 = True
 save_images_1 = True
 
-x, y, feature_names, selected_pixels, paths = ml_utils.create_samples(dataset_name_1, dataset_folder_1, mat_path_1, balanced_1, save_images_1)
-train_models(x, y, feature_names, selected_pixels, paths)
+dataset_name_2 = "aigle-rn"
+dataset_folder_2 = "/media/winbuntu/databases/CrackDataset"
+mat_path_2 = "aigle-rn_balanced.mat"
+# mat_path_2 = None
+balanced_2 = True
+save_images_2 = True
 
-# train_cross_dataset([dataset_name_1, dataset_folder_2], [dataset_folder_1, dataset_folder_2], [mat_path_1, mat_path_2],
-#                     [balanced_1, balanced_2], [save_images_1, save_images_2])
+test_models_cross_dataset([dataset_name_1, dataset_name_2], [dataset_folder_1, dataset_folder_2],
+                          [mat_path_1, mat_path_2],
+                          [balanced_1, balanced_2], [save_images_1, save_images_2])
