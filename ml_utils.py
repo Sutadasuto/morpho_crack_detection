@@ -118,7 +118,14 @@ def get_morphological_features(paths, gt_paths, gt_value, dataset_name, balanced
     command = "matlab -nodesktop -nojvm -r 'try preprocess_images(\"%s\",\"%s\",%s,\"%s\",%s,%s); catch; end; quit'" % (
         paths, gt_paths, gt_value, dataset_name, str(balanced).lower(), str(save_resulting_images).lower())
     os.system(command)
-    balanced_string = "_balanced" if balanced else ""
+    if balanced is True:
+        balanced_string = "_balanced"
+    elif balanced > 0:
+        balanced_string = "_1_to_%s" % str(balanced).replace(".", ",")
+    elif balanced < 0:
+        balanced_string = "_1_to_%s_weighted" % str(-balanced).replace(".", ",")
+    else:
+        balanced_string = ""
     features, labels, feature_names, selected_pixels = open_morphological_features(dataset_name + balanced_string + ".mat", balanced)
     return features, labels, feature_names, selected_pixels
 
