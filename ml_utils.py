@@ -125,7 +125,16 @@ def get_morphological_features(paths, gt_paths, gt_value, dataset_name, balanced
 
 def open_morphological_features(path_to_mat, balanced=False):
     mat_root, dataset_name = os.path.split(path_to_mat)
-    balanced_string = "_balanced" if balanced else ""
+
+    if balanced is True:
+        balanced_string = "_balanced"
+    elif balanced > 0:
+        balanced_string = "_1_to_%s" % str(balanced).replace(".", ",")
+    elif balanced < 0:
+        balanced_string = "_1_to_%s_weighted" % str(-balanced).replace(".", ",")
+    else:
+        balanced_string = ""
+
     dataset_name = dataset_name.split(balanced_string + ".mat")[0]
     features = scipy.io.loadmat(path_to_mat)["data"]
     labels = scipy.io.loadmat(os.path.join(mat_root, dataset_name + balanced_string + "_labels.mat"))["labels"]
@@ -221,14 +230,17 @@ def cross_validate_predict(data, folds, cv_results):
     return predicts
 
 
-def cross_dataset_validation(model, x_train, y_train, x_test, y_test, test_selected_pixels, test_paths, save_images_to=None):
+def cross_dataset_validation(model, x_train, y_train, x_test, y_test, test_selected_pixels, test_paths, save_images_to=None, score_function=None):
 
     model.fit(x_train, y_train)
     cross_dataset_predictions = model.predict(x_test)
-    if set(cross_dataset_predictions) == {0, 1}:
-        cross_dataset_score = accuracy_score(y_test, cross_dataset_predictions)
-    else:
-        cross_dataset_score = r2_score(y_test, cross_dataset_predictions)
+    if score_function is None:
+        if set(cross_dataset_predictions) == {0, 1}:
+            score_function = accuracy_score
+        else:
+            score_function = r2_score
+    cross_dataset_score = score_function(y_test, cross_dataset_predictions)
+
     if save_images_to is not None:
         save_visual_results(test_selected_pixels, cross_dataset_predictions, y_test, test_paths, save_images_to)
-    return cross_dataset_score
+    return cross_dataset_score, score_function.__name__

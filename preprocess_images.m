@@ -55,7 +55,25 @@ function preprocess_images(paths, gt_paths, gt_value, dataset_name, balanced, sa
             rand_ind = randperm(n_bg_pixels);
             bg_pixels = bg_pixels(rand_ind(1:n_rand_bg_pixels)); 
             n_bg_pixels = n_rand_bg_pixels;
+        elseif balanced > 0
+            n_rand_bg_pixels = min(balanced*n_gt_pixels, n_bg_pixels);
+            n_rand_bg_pixels = int16(max(1, n_rand_bg_pixels));
+            rand_ind = randperm(n_bg_pixels);
+            bg_pixels = bg_pixels(rand_ind(1:n_rand_bg_pixels)); 
+            n_bg_pixels = n_rand_bg_pixels;
+        elseif balanced < 0
+            n_rand_bg_pixels = min(-balanced*n_gt_pixels, n_bg_pixels);
+            n_rand_bg_pixels = int16(max(1, n_rand_bg_pixels));
+            weights = zeros(n_bg_pixels, 1);
+            chosen_image = "Frangi's vesselness";
+            chosen_image = features{1}(:, :, find(features{2} == chosen_image));
+            for idx = 1:n_bg_pixels
+                weights(idx) = max(1e-5, chosen_image(bg_pixels(idx)));
+            end
+            bg_pixels = datasample(bg_pixels,n_rand_bg_pixels,'Weights',weights, 'Replace', false);
+            n_bg_pixels = n_rand_bg_pixels;
         end
+       
         [row_gt, col_gt] = ind2sub(size(gt), gt_pixels);
         [row_bg, col_bg] = ind2sub(size(gt), bg_pixels);
         
@@ -81,6 +99,10 @@ function preprocess_images(paths, gt_paths, gt_value, dataset_name, balanced, sa
     
     if balanced == true
         balanced_string = "_balanced";
+    elseif balanced > 0
+        balanced_string = strcat("_1_to_", strrep(num2str(balanced), ".", ","));
+    elseif balanced < 0
+        balanced_string = strcat("_1_to_", strrep(num2str(-balanced), ".", ","), "_weighted");
     else
         balanced_string = "";
     end
