@@ -9,7 +9,7 @@ from sklearn.metrics import accuracy_score, r2_score
 
 # def create_images(dataset_name, dataset_path, mat_path=None):
 #     print("Loading images...")
-#     if dataset_name == "cfd":
+#     if dataset_name == "cfd" or dataset_name == "cfd-pruned":
 #         or_im_paths, gt_paths = data.paths_generator_cfd(dataset_path)
 #     elif dataset_name == "aigle-rn":
 #         or_im_paths, gt_paths = data.paths_generator_crack_dataset(dataset_path, "AIGLE_RN")
@@ -23,8 +23,8 @@ from sklearn.metrics import accuracy_score, r2_score
 #         images, feature_names, file_names = open_morphological_features(mat_path)
 #     print("Images loaded!")
 #     return images, ground_truth, feature_names, file_names
-#
-#
+
+
 # def get_morphological_features(paths, dataset_name):
 #     paths = ";".join(paths)
 #     command = "matlab -nodesktop -nojvm -r 'try preprocess_images(\"%s\",\"%s\"); catch; end; quit'" % (
@@ -187,15 +187,17 @@ def reconstruct_from_selected_pixels(selected_pixels, predicted_labels, real_lab
     gt = cv2.imread(gt_paths[0])
     img = cv2.imread(or_paths[0])
     predicted_image = np.zeros(gt.shape, dtype=np.uint8)
+    predicted_cracks = np.zeros(gt.shape, dtype=np.uint8)
     resulting_images = []
 
     for pixel in range(len(selected_pixels)):
         image, row, col = selected_pixels[pixel]
         if image > current_image:
-            resulting_images.append(np.concatenate((img, gt, predicted_image), axis=1))
+            resulting_images.append(np.concatenate((img, gt, predicted_cracks, predicted_image), axis=1))
             gt = cv2.imread(gt_paths[image])
             img = cv2.imread(or_paths[image])
             predicted_image = np.zeros(gt.shape, dtype=np.uint8)
+            predicted_cracks = np.zeros(gt.shape, dtype=np.uint8)
             current_image = image
         if predicted_labels[pixel] == 1 or predicted_labels[pixel] == 0:
             if predicted_labels[pixel] == real_labels[pixel]:
@@ -210,7 +212,8 @@ def reconstruct_from_selected_pixels(selected_pixels, predicted_labels, real_lab
             regression_value = min(1, regression_value)
             regression_value = 255*regression_value
             predicted_image[row, col, :] = np.array([regression_value, regression_value, regression_value], dtype=np.uint8)
-    resulting_images.append(np.concatenate((img, gt, predicted_image), axis=1))
+        predicted_cracks[row, col, :] = np.array([255*predicted_labels[pixel] for i in range(3)])
+    resulting_images.append(np.concatenate((img, gt, predicted_cracks, predicted_image), axis=1))
     return resulting_images
 
 
@@ -251,3 +254,27 @@ def cross_dataset_validation(model, x_train, y_train, x_test, y_test, test_selec
     if save_images_to is not None:
         save_visual_results(test_selected_pixels, cross_dataset_predictions, y_test, test_paths, save_images_to)
     return cross_dataset_score, score_function.__name__
+
+
+def image_dsc(img, crack_value=255):
+    if type(img) is str:
+        img = cv2.imread(img)
+    height, width, channels = img.shape
+    width = int(width/3)
+    gt = img[:, width:2 * width, 0] / 255
+    gt = gt.astype(np.uint8)
+    if crack_value == 0:
+        gt = 1 - gt
+
+    result = img[:, 2 * width:3 * width, :]
+    correct_crack = gt * result[:, :, 1]
+    wrong_crack = (1 - gt) * result[:, :, 2]
+    crack = np.maximum(correct_crack, wrong_crack)
+    crack = (crack/255).astype(np.uint8)
+    intersect = crack * gt
+    intersect_area = np.sum(intersect)
+    gt_area = np.sum(gt)
+    predicted_crack_area= np.sum(crack)
+    dsc = 2 * intersect_area / (gt_area + predicted_crack_area)
+    return dsc
+

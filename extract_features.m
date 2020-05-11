@@ -1,4 +1,6 @@
-function features = extract_features(img, circle_diameters, line_lengths, window_size)
+function features = extract_features(img_path, circle_diameters, line_lengths, path_lengths, window_sizes)
+    img = imread(img_path);
+        
     if length(size(img)) == 3
         img = rgb2gray(img);
     end
@@ -10,13 +12,18 @@ function features = extract_features(img, circle_diameters, line_lengths, window
     vessel = FrangiFilter2D(single(img), struct('verbose', false));
     feature_names = [feature_names; "Frangi's vesselness"];
     features = cat(3, features, vessel);
-    bottom_hat = bottom_hat_transform(img, 10, 10);
-    feature_names = [feature_names; "Bottom-hat"];
-    features = cat(3, features, bottom_hat);
     
-    cross_bottom_hat = cross_bottom_hat_transform(img, 10, 10);
-    feature_names = [feature_names; "Cross bottom-hat"];
-    features = cat(3, features, cross_bottom_hat);
+    for i = 1:length(line_lengths)
+        bottom_hat = bottom_hat_transform(img, line_lengths(i), 10);
+        feature_names = [feature_names; "Bottom-hat SE size " + line_lengths(i)];
+        features = cat(3, features, bottom_hat);
+    end
+    
+    for i = 1:length(line_lengths)
+        cross_bottom_hat = cross_bottom_hat_transform(img, line_lengths(i), 10);
+        feature_names = [feature_names; "Cross bottom-hat SE size " + line_lengths(i)];
+        features = cat(3, features, cross_bottom_hat);
+    end
     
     
     img = im2single(img);
@@ -64,18 +71,29 @@ function features = extract_features(img, circle_diameters, line_lengths, window
     end
     features = cat(3, features, line_closings);
     
-    sliding_mean = sliding_statistical_measure(img, window_size, "mean");
-    feature_names = [feature_names; "Sliding mean " + string(window_size(1)) + "x" + string(window_size(2))];
-    features = cat(3, features, sliding_mean);
-    sliding_median = sliding_statistical_measure(img, window_size, "median");
-    feature_names = [feature_names; "Sliding median " + string(window_size(1)) + "x" + string(window_size(2))];
-    features = cat(3, features, sliding_median);
-    sliding_std = sliding_statistical_measure(img, window_size, "std");
-    feature_names = [feature_names; "Sliding std " + string(window_size(1)) + "x" + string(window_size(2))];
-    features = cat(3, features, sliding_std);
-    sliding_mad = sliding_statistical_measure(img, window_size, "mad");
-    feature_names = [feature_names; "Sliding mad " + string(window_size(1)) + "x" + string(window_size(2))];
-    features = cat(3, features, sliding_mad);
+    command = strcat("python smil.py '", img_path, "' --path_sizes ", strjoin(string(path_lengths)));
+    [status,cmdout] = system(command);
+    for i = 1:length(path_lengths)
+        features = cat(3, features, im2single(imread(strcat("matlab_closing_", string(path_lengths(i)), ".png"))));
+        feature_names = [feature_names; "Path Closing length " + path_lengths(i)];
+        delete(strcat("matlab_closing_", string(path_lengths(i)), ".png"));
+    end
+    
+    for i = 1:length(window_sizes)
+        window_size = window_sizes{i};
+        sliding_mean = sliding_statistical_measure(img, window_size, "mean");
+        feature_names = [feature_names; "Sliding mean " + string(window_size(1)) + "x" + string(window_size(2))];
+        features = cat(3, features, sliding_mean);
+        sliding_median = sliding_statistical_measure(img, window_size, "median");
+        feature_names = [feature_names; "Sliding median " + string(window_size(1)) + "x" + string(window_size(2))];
+        features = cat(3, features, sliding_median);
+        sliding_std = sliding_statistical_measure(img, window_size, "std");
+        feature_names = [feature_names; "Sliding std " + string(window_size(1)) + "x" + string(window_size(2))];
+        features = cat(3, features, sliding_std);
+        sliding_mad = sliding_statistical_measure(img, window_size, "mad");
+        feature_names = [feature_names; "Sliding mad " + string(window_size(1)) + "x" + string(window_size(2))];
+        features = cat(3, features, sliding_mad);
+    end
     features = {features, feature_names};
 end
 

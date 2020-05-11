@@ -20,12 +20,12 @@ function preprocess_images(paths, gt_paths, gt_value, dataset_name, balanced, sa
     pick_maps = [];
 
     for path_idx = 1:length(path_list)
-        img = imread(path_list(path_idx));
-        gt = imread(gt_path_list(path_idx));
+        img_path = path_list(path_idx);
+        gt= imread(gt_path_list(path_idx));
         disp('Current image: ' + path_list(path_idx));
         
         tic
-        features = extract_features(img, [3, 5, 10], [3, 5, 10], [50, 50]);
+        features = extract_features(img_path, [3, 5, 10], [3, 5, 10], [10, 20, 30], {[50, 50]});
         if save_images == true
            split_path = regexp(path_list(path_idx), filesep, 'split');
            file_name = split_path(end);
