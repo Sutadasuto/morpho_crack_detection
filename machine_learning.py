@@ -167,9 +167,9 @@ def train_models(x, y, feature_names, selected_pixels, paths, scoring=None, sele
 
     # classifiers = [LinearSVC(class_weight='balanced'), Lasso(alpha=LassoCV().fit(x[:, selected_indices], y).alpha_)]
     # classifiers = [LinearSVC()]
-    classifiers = [DecisionTreeClassifier(class_weight="balanced", random_state=0)]
+    # classifiers = [DecisionTreeClassifier(class_weight="balanced", random_state=0)]
                    # DecisionTreeRegressor(random_state=0)]
-    # classifiers = [RandomForestClassifier(n_estimators=20, class_weight="balanced", random_state=0)]
+    classifiers = [RandomForestClassifier(n_estimators=20, class_weight="balanced", random_state=0)]
     # if scoring is None:
     #     scores = [None for clf in classifiers]
     # else:
@@ -177,11 +177,13 @@ def train_models(x, y, feature_names, selected_pixels, paths, scoring=None, sele
     scoring = [matthews_corrcoef, None]
     # scoring = [matthews_corrcoef]
 
+    images = list(set(selected_pixels[:, 0]))
     kf = KFold(n_splits=10, shuffle=True, random_state=0)
     kf.get_n_splits(y)
     folds = []
-    for train_index, test_index in kf.split(y):
-        folds.append((train_index, test_index))
+    for train_index, test_index in kf.split(images):
+        folds.append((np.concatenate([np.where(selected_pixels[:,0] == idx)[0] for idx in train_index]),
+                      np.concatenate([np.where(selected_pixels[:,0] == idx)[0] for idx in test_index])))
     del kf
 
     with open("results.txt", "w") as f:
@@ -206,9 +208,9 @@ def train_models(x, y, feature_names, selected_pixels, paths, scoring=None, sele
 
 
 def one_dataset_balanced_crossvalidation(selected_features="all"):
-    dataset_name = "aigle-rn"
-    dataset_folder = "/media/winbuntu/databases/CrackDataset"
-    mat_path = "aigle-rn.mat"
+    dataset_name = "cfd-pruned"
+    dataset_folder = "/media/winbuntu/databases/CrackForestDatasetPruned"
+    mat_path = "cfd-pruned.mat"
     # mat_path = None
     balanced = False
     save_images = False
@@ -251,16 +253,16 @@ def two_dataset_crossvalidation(selected_features="all"):
 
 
 # selected_features = "Frangi's vesselness;Bottom-hat;Cross bottom-hat;Sliding mean 50x50;Sliding std 50x50;Sliding median 50x50;Sliding mad 50x50"
-# selected_features = "all"
-# one_dataset_balanced_crossvalidation(selected_features)
+selected_features = "all"
+one_dataset_balanced_crossvalidation(selected_features)
 
-dataset_name = "cfd-pruned"
-dataset_folder = "/media/winbuntu/databases/CrackForestDatasetPruned"
-mat_path = "cfd-pruned.mat"
-mat_path = None
-balanced = True
-save_images = False
+# dataset_name = "cfd-pruned"
+# dataset_folder = "/media/winbuntu/databases/CrackForestDatasetPruned"
+# mat_path = "cfd-pruned.mat"
+# mat_path = None
+# balanced = -10
+# save_images = False
 
-x, y, feature_names, selected_pixels, paths = ml_utils.create_samples(dataset_name, dataset_folder, mat_path,
-                                                                      balanced, save_images)
-feature_selection(x, y, feature_names)
+# x, y, feature_names, selected_pixels, paths = ml_utils.create_samples(dataset_name, dataset_folder, mat_path,
+#                                                                       balanced, save_images)
+# feature_selection(x, y, feature_names)
